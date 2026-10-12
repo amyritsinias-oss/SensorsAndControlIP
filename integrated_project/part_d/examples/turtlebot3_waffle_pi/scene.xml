@@ -1,6 +1,6 @@
 <mujoco model="tb3_waffle_pi_scene">
   <compiler angle="radian" inertiafromgeom="auto"/>
-  <option timestep="0.002" gravity="0 0 0" integrator="RK4"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="RK4"/>
 
   <asset>
     <texture name="grid_tex" type="2d" builtin="checker" width="256" height="256"
@@ -28,16 +28,39 @@
 
     <body name="room" pos="0 0 0">
       <geom name="floor" type="plane" size="3.0 2.5 0.01" pos="2.5 2.0 0" material="floor_mat"/>
-      <geom name="south_wall" type="box" size="2.5 0.08 0.25" pos="2.5 0.0 0.25" material="wall_mat"/>
-      <geom name="north_wall" type="box" size="2.5 0.08 0.25" pos="2.5 4.0 0.25" material="wall_mat"/>
-      <geom name="west_wall" type="box" size="0.08 2.0 0.25" pos="0.0 2.0 0.25" material="wall_mat"/>
-      <geom name="east_wall" type="box" size="0.08 2.0 0.25" pos="5.0 2.0 0.25" material="wall_mat"/>
+      <geom name="south_wall" type="box" size="2.5 0.08 0.25" pos="2.5 -0.08 0.25" material="wall_mat"/>
+      <geom name="north_wall" type="box" size="2.5 0.08 0.25" pos="2.5 4.08 0.25" material="wall_mat"/>
+      <geom name="west_wall" type="box" size="0.08 2.0 0.25" pos="-0.08 2.0 0.25" material="wall_mat"/>
+      <geom name="east_wall" type="box" size="0.08 2.0 0.25" pos="5.08 2.0 0.25" material="wall_mat"/>
 
       <geom name="obstacle_1" type="box" size="0.25 1.10 0.25" pos="1.75 1.10 0.25" material="obstacle_mat"/>
       <geom name="obstacle_2" type="box" size="0.25 1.10 0.25" pos="3.25 2.90 0.25" material="obstacle_mat"/>
+
+      <body name="marker_dock" pos="5.00 0.90 0.46">
+        <geom name="marker_dock_geom" type="box" size="0.012 0.18 0.18" pos="-0.012 0 0" material="marker_red" contype="0" conaffinity="0"/>
+      </body>
+      <body name="marker_1" pos="0.00 2.00 0.46">
+        <geom name="marker_1_geom" type="box" size="0.012 0.18 0.18" pos="0.012 0 0" material="marker_blue" contype="0" conaffinity="0"/>
+      </body>
+      <body name="marker_2" pos="1.00 4.00 0.46">
+        <geom name="marker_2_geom" type="box" size="0.18 0.012 0.18" pos="0 -0.012 0" material="marker_green" contype="0" conaffinity="0"/>
+      </body>
+      <body name="marker_3" pos="2.50 4.00 0.46">
+        <geom name="marker_3_geom" type="box" size="0.18 0.012 0.18" pos="0 -0.012 0" material="marker_gold" contype="0" conaffinity="0"/>
+      </body>
+      <body name="marker_4" pos="5.00 3.00 0.46">
+        <geom name="marker_4_geom" type="box" size="0.012 0.18 0.18" pos="-0.012 0 0" material="marker_blue" contype="0" conaffinity="0"/>
+      </body>
+      <body name="marker_5" pos="2.50 0.00 0.46">
+        <geom name="marker_5_geom" type="box" size="0.18 0.012 0.18" pos="0 0.012 0" material="marker_red" contype="0" conaffinity="0"/>
+      </body>
+      <body name="marker_6" pos="0.60 0.00 0.46">
+        <geom name="marker_6_geom" type="box" size="0.18 0.012 0.18" pos="0 0.012 0" material="marker_green" contype="0" conaffinity="0"/>
+      </body>
     </body>
 
-    <body name="base_footprint" pos="0.6 0.5 0.05" euler="0 0 1.57079632679">
+    <body name="base_footprint" pos="0.6 0.5 0.0" euler="0 0 1.57079632679">
+      <freejoint name="base_free"/>
       <inertial pos="0 0 0.07" mass="1.0" diaginertia="0.02 0.02 0.04"/>
 
       <geom name="base_link" type="box" size="0.12 0.12 0.04" pos="0 0 0.07" material="robot_body"/>
@@ -54,34 +77,13 @@
         <geom name="right_wheel" type="cylinder" size="0.033 0.020 0.01" euler="1.57079632679 0 0" material="robot_body"/>
       </body>
 
-      <body name="caster_mount" pos="0.0 0.0 0.012">
+      <body name="caster_mount" pos="0.0 0.0 0.02">
         <geom name="caster_ball" type="sphere" size="0.02" pos="0 0 0" material="robot_trim"/>
       </body>
 
       <camera name="front_camera" pos="0.14 0 0.18" quat="0.7071068 0 0 0.7071068" fovy="62.2"/>
 
       <site name="lidar_site" pos="0 0 0.18" size="0.01"/>
-      <body name="marker_dock" pos="4.98 0.90 0.46" euler="0 0 3.14159265359">
-        <geom name="marker_dock_geom" type="box" size="0.18 0.02 0.18" material="marker_red"/>
-      </body>
-      <body name="marker_1" pos="0.00 2.00 0.46" euler="0 0 0.0">
-        <geom name="marker_1_geom" type="box" size="0.18 0.02 0.18" material="marker_blue"/>
-      </body>
-      <body name="marker_2" pos="1.00 4.00 0.46" euler="0 0 -1.57079632679">
-        <geom name="marker_2_geom" type="box" size="0.18 0.02 0.18" material="marker_green"/>
-      </body>
-      <body name="marker_3" pos="2.50 4.00 0.46" euler="0 0 -1.57079632679">
-        <geom name="marker_3_geom" type="box" size="0.18 0.02 0.18" material="marker_gold"/>
-      </body>
-      <body name="marker_4" pos="5.00 3.00 0.46" euler="0 0 3.14159265359">
-        <geom name="marker_4_geom" type="box" size="0.18 0.02 0.18" material="marker_blue"/>
-      </body>
-      <body name="marker_5" pos="2.50 0.00 0.46" euler="0 0 1.57079632679">
-        <geom name="marker_5_geom" type="box" size="0.18 0.02 0.18" material="marker_red"/>
-      </body>
-      <body name="marker_6" pos="0.60 0.00 0.46" euler="0 0 1.57079632679">
-        <geom name="marker_6_geom" type="box" size="0.18 0.02 0.18" material="marker_green"/>
-      </body>
     </body>
   </worldbody>
 
