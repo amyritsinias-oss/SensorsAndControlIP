@@ -7,11 +7,11 @@ import numpy as np
 
 from lidar import Lidar
 
-SCENE = Path(__file__).resolve().parents[1] / "part_d" / "examples" / "turtlebot3_waffle_pi" / "scene.xml"
+SCENE = Path(__file__).resolve().parents[1] / "models" / "scene_room.xml"
 
 model = mujoco.MjModel.from_xml_path(str(SCENE))
 data = mujoco.MjData(model)
-lidar = Lidar(model)
+lidar = Lidar(model, site="lidar", robot_body="base")
 
 # Place the robot (x, y, heading). The free joint's qpos is [x, y, z, qw, qx, qy, qz].
 pose = np.array([1.0, 3.0, 0.3])

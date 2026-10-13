@@ -14,10 +14,12 @@ sys.path.insert(0, str(PART_D))
 from tb3_control import Path as RefPath, dock_poses          # noqa: E402
 from sim.scenario import MARKERS, DOCK_ID, START, DOCK_STANDOFF, APPROACH_LEN  # noqa: E402
 
-SCENE = PART_D / "examples" / "turtlebot3_waffle_pi" / "scene.xml"
+SCENE = Path(__file__).resolve().parents[1] / "models" / "scene_room.xml"
+
+
 model = mujoco.MjModel.from_xml_path(str(SCENE))
 data = mujoco.MjData(model)
-lidar = Lidar(model, noise_std=0.01)
+lidar = Lidar(model, site="lidar", robot_body="base", noise_std=0.01)
 grid = OccupancyGrid()
 
 

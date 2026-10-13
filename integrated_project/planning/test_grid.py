@@ -8,11 +8,11 @@ import numpy as np
 from lidar import Lidar
 from occupancy_grid import OccupancyGrid
 
-SCENE = Path(__file__).resolve().parents[1] / "part_d" / "examples" / "turtlebot3_waffle_pi" / "scene.xml"
+SCENE = Path(__file__).resolve().parents[1] / "models" / "scene_room.xml"
 
 model = mujoco.MjModel.from_xml_path(str(SCENE))
 data = mujoco.MjData(model)
-lidar = Lidar(model, noise_std=0.01)          
+lidar = Lidar(model, site="lidar", robot_body="base", noise_std=0.01)          
 grid = OccupancyGrid()
 
 
