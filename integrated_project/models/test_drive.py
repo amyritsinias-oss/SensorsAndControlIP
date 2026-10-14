@@ -10,6 +10,9 @@ HERE = Path(__file__).resolve().parent
 model = mujoco.MjModel.from_xml_path(str(HERE / "scene_room.xml"))
 data = mujoco.MjData(model)
 
+crossing_body_id = model.body("obs_crossing").id
+crossing_mocap_id = model.body_mocapid[crossing_body_id]
+
 R_WHEEL, TRACK = 0.033, 0.288            # wheel radius, distance between wheels [m]
 START = (0.6, 0.5, np.pi / 2)            # same start pose as Part D's scenario.py
 
@@ -33,6 +36,17 @@ def drive(v, w):
     data.ctrl[model.actuator("wheel_right").id] = (v + w * TRACK / 2) / R_WHEEL
 
 
+################ this is for the moving obstacle
+def update_moving_obstacle(t):
+    """Move the obstacle back and forth across the track"""
+    crossing_y = 3.0
+    x_max = 2.5
+    x_min = 0.2
+    period = 20
+    # Calculate the position from simulation time; a longer period means slower motion.
+    x_pos = x_min + (x_max - x_min) * (0.5 * (1 + np.sin(2 * np.pi * t / period)))
+    data.mocap_pos[crossing_mocap_id] = [x_pos, crossing_y, 0.25]
+
 # (v [m/s], w [rad/s], seconds): up the west side, turn right, a bit east
 PLAN = [(0.0, 0.0, 0.5), (0.26, 0.0, 6.0), (0.0, -1.0, np.pi / 2), (0.2, 0.0, 3.0), (0.0, 0.0, 0.5)]
 
@@ -47,6 +61,11 @@ for v, w, T in PLAN:
     drive(v, w)
     for _ in range(int(T / model.opt.timestep)):
         t0 = time.time()
+        ########################################
+        ## if we are wanting to test random obstacles, we can move them in this loop
+        ## if you dont want the moving obstacle just comment out the below line
+        #########################################
+        update_moving_obstacle(data.time)
         mujoco.mj_step(model, data)
         max_pitch = max(max_pitch, abs(yaw_pitch()[1]))
         if v == 0.26:

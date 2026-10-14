@@ -52,6 +52,11 @@
     <body name="obs_1" pos="1.75 1.1 0.25"><geom type="box" size="0.25 1.1 0.25" material="obstacle"/></body>
     <body name="obs_2" pos="3.25 2.9 0.25"><geom type="box" size="0.25 1.1 0.25" material="obstacle"/></body>
 
+    <!-- Moving obstacle -->
+    <body name="obs_crossing" mocap="true" pos="0.5 2.5 0.25">
+      <geom type="box" size="0.15 0.15 0.25" material="obstacle"/>
+    </body>
+
     <!-- Charging station pad in front of the dock marker -->
     <geom name="dock_pad" type="box" pos="4.700 0.900 0.001" size="0.2 0.2 0.001" material="dock"
           contype="0" conaffinity="0"/>
