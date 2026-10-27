@@ -1,10 +1,14 @@
 """
 How to drive the team's MuJoCo TurtleBot3 with the Part D controller.
 
-NOT RUN in the development environment (MuJoCo was not installable there);
-it uses only the core MuJoCo Python API from the course's mujoco_UR3_tutorial
+Runs with MuJoCo 3.x on turtlebot3_waffle_pi/scene.xml. It uses only the core
+MuJoCo Python API from the course's mujoco_UR3_tutorial
 (MjModel.from_xml_path, MjData, mj_name2id, data.ctrl, mj_step, viewer).
 Edit the four names under CONFIG to match the team's MJCF.
+
+Current status: waypoints are the fixed ones from sim/scenario.py (not yet
+from the LiDAR planner) and the estimator is encoder-only dead reckoning (no
+camera updates yet), so the true pose drifts away from the estimate over a run.
 
 Loop at the control rate T:
   wheel joint angles -> encoder ticks -> EKF predict
