@@ -2,15 +2,15 @@
 ## Project introduction:
 
 ## Group info:
-Group 22 \
+Group 22 
 
-Dominik Raffoul \
+Dominik Raffoul 
 
-Max Bakulic \
+Max Bakulic 
 
-Amy Ritsinias \
+Amy Ritsinias 
 
-Elan Nashmi \
+Elan Nashmi 
 
 
 ## Resources
