@@ -1,33 +1,4 @@
-"""
-TurtleBot3 pose EKF: wheel-encoder odometry + ArUco range-bearing, with the
-two wheel-radius scale errors estimated as extra states.
 
-Replaces sim/ekf_standin.py. Same drop-in interface the controller needs:
-    ekf.x  -> (3,)  pose estimate [x, y, th]       (world frame)
-    ekf.P  -> (3,3) pose covariance
-plus ekf.xa / ekf.Pa for the full 5-state vector and covariance.
-
-State
-    xa = [x, y, th, bL, bR]
-    bL, bR : fractional wheel-radius errors, true radius = r_nom * (1 + b)
-Why the bias states: the stand-in treated a worn wheel (a constant BIAS) as
-white noise, so it had to inflate the odometry noise 5x (k_odo = 0.15) to stay
-consistent, and the leftover bias in the estimate caused the D2 mean
-cross-track failures. Here the bias is estimated from the marker updates, so
-the odometry noise can be set to what the encoders and slip actually do.
-
-Predict : wheel increments dphiL, dphiR (encoder ticks OR joint angles)
-          ds_i = r (1 + b_i) dphi_i
-          ds   = (dsL + dsR) / 2,  dth = (dsR - dsL) / L,  midpoint heading
-Update  : ArUco detection (id, range, bearing) to a marker at a known (x, y),
-          measured from the camera, which may sit cam_offset ahead of the
-          base centre (Waffle Pi camera is ~0.07 m forward; the sim uses 0).
-          Chi-square innovation gate, Joseph-form covariance update, and a
-          recovery step that re-opens the pose covariance if every recent
-          detection has been gated out (e.g. the robot was bumped).
-
-Run this file directly to tune it:  python -m sim.ekf  [--seeds 20]
-"""
 from dataclasses import dataclass, asdict
 
 import numpy as np
@@ -40,16 +11,7 @@ from tb3_control.model import wrap
 # =============================================================================
 @dataclass
 class EKFTuning:
-    # ---- odometry (predict) noise --------------------------------------------
-    # Per-wheel angle noise per step:  sigma_i = k_odo * |dphi_i| + sig_odo_floor  [rad]
-    #   k_odo         : slip / scrub, proportional to how far the wheel turned.
-    #                   Plant slip is 1% per 5 ms substep -> ~0.3% per 50 ms step,
-    #                   so 0.01-0.03 is realistic with margin for unmodelled
-    #                   effects (motor lag between ticks, carpet, bumps).
-    #                   Stand-in needed 0.15 because it had no bias states.
-    #   sig_odo_floor : encoder quantisation. One tick = 2*pi/4096 = 1.5e-3 rad;
-    #                   the difference of two quantised readings has
-    #                   sigma ~ 1 tick / sqrt(6) ~ 6e-4 rad.
+    
     k_odo: float = 0.01               # tuned (sweep: flat 0.01-0.05 once bias states are on)
     sig_odo_floor: float = 6e-4
     # Extra additive pose noise per step (unmodelled: latency between ticks and
@@ -66,25 +28,20 @@ class EKFTuning:
     b_clip: float = 0.15               # hard limit on |b| (physically a wheel isn't 15% off)
 
     # ---- camera (update) ----------------------------------------------------
-    r_scale: float = 1.0               # multiplies the camera's sigma (both range and bearing).
-                                       #   >1 if the real detector is worse than its datasheet model.
-    sig_r_min: float = 0.005           # floor on range sigma [m]
-    sig_b_min: float = np.deg2rad(0.5) # floor on bearing sigma [rad]
-    cam_offset: float = 0.0            # camera ahead of base centre [m] (MuJoCo/real Waffle Pi ~0.073)
+    r_scale: float = 1.0              
+                                       
+    sig_r_min: float = 0.005           
+    sig_b_min: float = np.deg2rad(0.5) 
+    cam_offset: float = 0.0           
 
     # ---- outlier gate + recovery --------------------------------------------
-    gate: float = 9.21                 # chi2(2) 99%. 13.8 = 99.9%. Lower = stricter.
-    recover_after: int = 4             # this many gated detections in a row with none accepted ...
-    recover_sigma_xy: float = 0.10     # ... re-opens pose covariance by this much (1 sigma, m)
-    recover_sigma_th: float = np.deg2rad(10.0)   # ... and this (rad), then retries the detection
+    gate: float = 9.21                 
+    recover_after: int = 4             
+    recover_sigma_xy: float = 0.10    
+    recover_sigma_th: float = np.deg2rad(10.0)   
 
 
-# Last sweep (20 closed-loop seeds 5000-5019, python -m sim.ekf):
-#   setting                          rms pos err   NEES95   |mean e_y|   dock
-#   stand-in equivalent (no bias)    2.80 cm       88 %     0.89 cm      100 %
-#   3-state, realistic noise         3.08 cm       32 %     1.01 cm       90 %   <- overconfident
-#   THIS (defaults above)            2.43 cm       96 %     0.84 cm      100 %
-# Estimated wheel bias converges to within ~0.2 % of the true wheel error.
+
 
 # Named presets so the report can quote exactly what was run.
 PRESETS = {
@@ -282,13 +239,6 @@ class TB3EKF:
 # =============================================================================
 #  TUNING SWEEP
 #  Closed-loop trials (plant -> EKF -> controller) over seeds disjoint from
-#  the Part D Monte Carlo. Scores each setting on:
-#    rms_pos  : RMS true-vs-estimated position error   (accuracy)
-#    nees95   : fraction of steps with NEES < 7.81      (consistency, want ~0.95;
-#               much lower = overconfident, ~1.00 = too cautious)
-#    |mean_ey|: mean true cross-track (D2 - the bias the stand-in left behind)
-#    success  : docked within tolerance
-#  Selection rule is in tune(); results of the last sweep are recorded on EKFTuning.
 # =============================================================================
 def _trial(args):
     seed, tuning = args
@@ -301,7 +251,8 @@ def _trial(args):
 def evaluate(tuning, seeds, pool=None):
     jobs = [(s, tuning) for s in seeds]
     rows = list(pool.map(_trial, jobs)) if pool else [_trial(j) for j in jobs]
-    return {k: float(np.mean([r[k] for r in rows])) for k in rows[0]} | \
+    return {k: float
+        np.mean([r[k] for r in rows])) for k in rows[0]} | \
            {"worst_mean_ey": float(np.max([r["mean_ey"] for r in rows]))}
 
 
@@ -332,10 +283,7 @@ def tune(seeds=range(5000, 5020), grid=None, verbose=True):
             if verbose:
                 _print_row(setting, res)
 
-    # Selection: every trial docks, accuracy within 3% of the best, then the most
-    # CONSISTENT one (NEES95 closest to 0.95). Accuracy differences under ~3% are
-    # within seed-to-seed noise, while an over- or under-confident P misleads the
-    # controller's uncertainty-aware speed and the outlier gate.
+
     cand = [(s, r) for s, r in rows if "preset" not in s and r["success"] == 1.0] \
         or [sr for sr in rows if "preset" not in sr[0]]
     best_rms = min(r["rms_pos"] for _, r in cand)
