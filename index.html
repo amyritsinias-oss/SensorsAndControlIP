@@ -147,16 +147,17 @@
             <strong>Controller:</strong>
           </p>
           <p>
-            The controller drives the robot along the path from the planner and docks it at the charging station. It only uses the robot's position estimate and uncertainty from the EKF. Ground truth from the simulator is only used afterwards to evaluate how well each run went.
+            The robot is driven by the controller along the planner's path and docked at the charging station. It solely makes use of the robot's position estimate and EKF uncertainty. The simulator's ground truth is only utilised after the fact to assess each run's performance.
           </p>
           <p>
-            Rather than tracking a target position, the controller looks at how far the robot is from the path sideways and how far its heading is off. These errors are modelled as a linear state-space system and an LQR controller is designed on it, with integral action added so that steady offsets, such as one caused by a worn wheel, are removed over time. The controller also steers the robot through the curves of the path directly, so feedback is only needed to correct errors.
+            The controller measures the robot's sideways distance from the path and its heading deviation instead of tracking a target position. An LQR controller is created based on the concept of these faults as a linear state-space system, and integral action is incorporated to eliminate stable offsets over time, such as those brought on by a worn wheel. Additionally, the controller directs the robot through the path's bends, thus input is only required to fix mistakes.
+
           </p>
           <p>
-            The controllability analysis showed that a stopped robot cannot correct a sideways error, as it can only turn on the spot. Because of this, the robot never fully stops before reaching the dock, and any sideways error is corrected while it still has speed.
+            A stopped robot cannot repair a sideways fault since it can only turn on the spot, according to the controllability analysis. As a result, any lateral fault is fixed while the robot is still moving, and it never completely stops before arriving at the dock.
           </p>
           <p>
-            The weights were chosen based on how much error is acceptable for docking, then tuned by sweeping the control effort weighting and picking the value that gave the best tracking for the least steering. As the robot's behaviour changes with speed, the controller gains are recalculated across a range of speeds. The robot also slows down for tight curves and when the EKF is less certain of its position, and finishes with a straight approach in front of the marker so it arrives square to the dock.
+            After determining how much inaccuracy is acceptable for docking, the weights were adjusted by sweeping the control effort weighting and selecting the value that produced the best tracking for the least amount of steering. As the robot's behaviour changes with speed, the controller gains are recalculated across a range of speeds. The robot also slows down for tight curves and when the EKF is less certain of its position, it additionally finishes with a straight approach in front of the marker to ensure it arrives square to the dock.
           </p>
           <p>
             Testing over 100 randomised trials showed the robot docked successfully every time. Most of the remaining tracking error came from the position estimate rather than the controller, as the same controller tracked much more closely when given the true position.
