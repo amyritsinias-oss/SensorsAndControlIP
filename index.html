@@ -144,26 +144,17 @@
             whoever did part C do this part
           </p>
           <p>
-            ### Controller:
+            Controller:
           </p>
           <p>
             The controller drives the robot along the planned path and docks it at the charging station. It only uses the EKF estimate and covariance (x̂, P). Ground truth is only used afterwards to evaluate the runs.
-            </p>
-          <p>
-            ### Model
-            The controller works in path error coordinates, where e_y is the sideways distance from the path and e_θ is the heading error. Linearising about the path and discretising with ZOH at T = 0.05 s gives:
+            It works in path error coordinates, where e_y is the sideways distance from the path and e_θ is the heading error. Linearising about the path and discretising with ZOH at T = 0.05 s gives:
             </p>
           <p>
             A_d = [1 vT; 0 1],  B_d = [vT²/2; T]
             </p>
           <p>
-            An integrator state on e_y is added to remove steady offsets, such as those caused by a worn wheel.
-            </p>
-          <p>
-            The controllability matrix has rank 3 when the robot is moving but only rank 1 at v = 0. A stopped robot can't correct a sideways error, so the controller keeps a minimum speed of 0.03 m/s until it reaches the dock.
-            </p>
-          <p>
-            ### Controller
+            An integrator state on e_y is added to remove steady offsets, such as those caused by a worn wheel. The controllability matrix has rank 3 when the robot is moving but only rank 1 at v = 0. A stopped robot can't correct a sideways error, so the controller keeps a minimum speed of 0.03 m/s until it reaches the dock.
             The control law is ω = vκ − K[e_y, e_θ, z]. The vκ term turns the robot through the curves of the path, so the feedback only has to correct errors.
             </p>
           <p>
@@ -173,7 +164,7 @@
             The robot also slows down on tight curves and when the EKF is unsure of its position. The final docking approach is a 0.7 m straight line in front of the marker.
             </p>
           <p>
-            ### Results
+            Results
             Tested over 100 random trials (random start pose, wheel wear and sensor noise) on a simplified test setup with a stand-in EKF:
             </p>
           <p>
