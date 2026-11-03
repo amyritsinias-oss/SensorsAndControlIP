@@ -148,32 +148,42 @@
           </p>
           <p>
             The controller drives the robot along the planned path and docks it at the charging station. It only uses the EKF estimate and covariance (x̂, P). Ground truth is only used afterwards to evaluate the runs.
-            
-            #### Model
+            </p>
+          <p>
+            ### Model
             The controller works in path error coordinates, where e_y is the sideways distance from the path and e_θ is the heading error. Linearising about the path and discretising with ZOH at T = 0.05 s gives:
-            
+            </p>
+          <p>
             A_d = [1 vT; 0 1],  B_d = [vT²/2; T]
-            
+            </p>
+          <p>
             An integrator state on e_y is added to remove steady offsets, such as those caused by a worn wheel.
-            
+            </p>
+          <p>
             The controllability matrix has rank 3 when the robot is moving but only rank 1 at v = 0. A stopped robot can't correct a sideways error, so the controller keeps a minimum speed of 0.03 m/s until it reaches the dock.
-            
-            #### Controller
+            </p>
+          <p>
+            ### Controller
             The control law is ω = vκ − K[e_y, e_θ, z]. The vκ term turns the robot through the curves of the path, so the feedback only has to correct errors.
-            
+            </p>
+          <p>
             The LQR weights come from Bryson's rule (max e_y = 5 cm, max e_θ = 0.15 rad, max turn rate 0.6 rad/s), with ρ = 5 chosen from a sweep. At 0.2 m/s this gives K = [12.96, 2.80, 4.99]. Since the model depends on speed, the gain is recalculated at 15 speeds and interpolated between them.
-            
+            </p>
+          <p>
             The robot also slows down on tight curves and when the EKF is unsure of its position. The final docking approach is a 0.7 m straight line in front of the marker.
-            
-            #### Results
+            </p>
+          <p>
+            ### Results
             Tested over 100 random trials (random start pose, wheel wear and sensor noise) on a simplified test setup with a stand-in EKF:
-            
+            </p>
+          <p>
             | Metric | Result | Target |
             |---|---|---|
             | RMS cross-track error | 2.23 cm | ≤ 5 cm |
             | Docking success | 100% | ≥ 95% |
             | 95th percentile dock error | 0.47 cm sideways, 1.66 cm along, 1.1° | within 2 cm / 3 cm / 5° |
-            
+            </p>
+          <p>
             Most of the tracking error comes from the estimator rather than the controller. With ground truth fed in, the same controller tracks to 0.7 cm, and changing ρ by a factor of 1000 barely changes the error with the EKF in the loop.
 
           </p>
