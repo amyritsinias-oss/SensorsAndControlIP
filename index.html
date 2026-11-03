@@ -144,38 +144,24 @@
             whoever did part C do this part
           </p>
           <p>
-            Controller:
+            <strong>Controller:</strong>
           </p>
           <p>
-            The controller drives the robot along the planned path and docks it at the charging station. It only uses the EKF estimate and covariance (x̂, P). Ground truth is only used afterwards to evaluate the runs.
-            It works in path error coordinates, where e_y is the sideways distance from the path and e_θ is the heading error. Linearising about the path and discretising with ZOH at T = 0.05 s gives:
-            </p>
+            The controller drives the robot along the path from the planner and docks it at the charging station. It only uses the robot's position estimate and uncertainty from the EKF. Ground truth from the simulator is only used afterwards to evaluate how well each run went.
+          </p>
           <p>
-            A_d = [1 vT; 0 1],  B_d = [vT²/2; T]
-            </p>
+            Rather than tracking a target position, the controller looks at how far the robot is from the path sideways and how far its heading is off. These errors are modelled as a linear state-space system and an LQR controller is designed on it, with integral action added so that steady offsets, such as one caused by a worn wheel, are removed over time. The controller also steers the robot through the curves of the path directly, so feedback is only needed to correct errors.
+          </p>
           <p>
-            An integrator state on e_y is added to remove steady offsets, such as those caused by a worn wheel. The controllability matrix has rank 3 when the robot is moving but only rank 1 at v = 0. A stopped robot can't correct a sideways error, so the controller keeps a minimum speed of 0.03 m/s until it reaches the dock.
-            The control law is ω = vκ − K[e_y, e_θ, z]. The vκ term turns the robot through the curves of the path, so the feedback only has to correct errors.
-            </p>
+            The controllability analysis showed that a stopped robot cannot correct a sideways error, as it can only turn on the spot. Because of this, the robot never fully stops before reaching the dock, and any sideways error is corrected while it still has speed.
+          </p>
           <p>
-            The LQR weights come from Bryson's rule (max e_y = 5 cm, max e_θ = 0.15 rad, max turn rate 0.6 rad/s), with ρ = 5 chosen from a sweep. At 0.2 m/s this gives K = [12.96, 2.80, 4.99]. Since the model depends on speed, the gain is recalculated at 15 speeds and interpolated between them.
-            </p>
+            The weights were chosen based on how much error is acceptable for docking, then tuned by sweeping the control effort weighting and picking the value that gave the best tracking for the least steering. As the robot's behaviour changes with speed, the controller gains are recalculated across a range of speeds. The robot also slows down for tight curves and when the EKF is less certain of its position, and finishes with a straight approach in front of the marker so it arrives square to the dock.
+          </p>
           <p>
-            The robot also slows down on tight curves and when the EKF is unsure of its position. The final docking approach is a 0.7 m straight line in front of the marker.
-            </p>
-          <p>
-            Results
-            Tested over 100 random trials (random start pose, wheel wear and sensor noise) on a simplified test setup with a stand-in EKF:
-            </p>
-          <p>
-            | Metric | Result | Target |
-            |---|---|---|
-            | RMS cross-track error | 2.23 cm | ≤ 5 cm |
-            | Docking success | 100% | ≥ 95% |
-            | 95th percentile dock error | 0.47 cm sideways, 1.66 cm along, 1.1° | within 2 cm / 3 cm / 5° |
-            </p>
-          <p>
-            Most of the tracking error comes from the estimator rather than the controller. With ground truth fed in, the same controller tracks to 0.7 cm, and changing ρ by a factor of 1000 barely changes the error with the EKF in the loop.
+            Testing over 100 randomised trials showed the robot docked successfully every time. Most of the remaining tracking error came from the position estimate rather than the controller, as the same controller tracked much more closely when given the true position.
+          </p>
+
 
           </p>
           </div>
