@@ -10,7 +10,7 @@ Max Bakulic
 
 Amy Ritsinias 
 
-Elan Nashmi 
+Elan Sami Aboud 
 
 
 ## Resources
