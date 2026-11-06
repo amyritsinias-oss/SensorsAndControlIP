@@ -129,10 +129,22 @@
             Model:
           </p>    
           <p>
-            Amy write this part
+            The turtlebot is a differential drive system. The state-space model is simplified as the unicycle model, with inputs of linear velocity = v and angular velocity = w. The translation from the unicycle model to differential drive is seen with the controller calculating the angular velocities for each wheel using the track width and wheel radius.
+          </p>
+          <P>
+            Continuous-time linearised path-error model (A, B) at speed v. A = np.array([[0.0, v],[0.0, 0.0]]) B = np.array([[0.0],[1.0]])
+          </P>
+          <p>
+            The error dynamics are the cross-track error e_y, and the heading error e_th, relative to the planned path. z is used as integral action, accumulating lateral error over time to eliminate consistent tracking errors. The model is discretised for implementation in the simulation.
           </p>
           <p>
-            Frame diagram:
+            Discretised augmented with integral z model: Ad = [[1, vT, 0], [0, 1, 0], [T, 0, 1]],  Bd = [[v T^2 / 2], [T], [0]]. 
+          </p>
+          <p>
+            Testing the controllability of the model while the robot has velocity demonstrates that the system is controllable with a result of rank = 3, matching the number of states in the model. However at 0 velocity the rank drops to 1 as a stationary robot can turn but cannot reduce lateral error.
+          </p>
+          <p>
+        
           </p>
           <p>
             whoever did part B do this part
@@ -179,7 +191,7 @@
   <!--  hard ware video. -->
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Hardware Video</h2>
+        <h2 class="title is-3">Hardware and Simulation Video</h2>
         <div class="publication-video">
           <iframe src="https://youtu.be/mWiIxuLUTyI?si=d9RDCl3wW28Fu6ex"
                   frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
@@ -235,7 +247,7 @@
             Max Bakulic:
           </p>
           <p>
-            Amy Ritsinias:
+            Amy Ritsinias: Collaborated with Dominik on part A. Helped Elan set up the hardware turtlebot and commenced early testing in the mechatronics lab for the real run. Set up the github and initial project page layout. Created moving obstacles in the sim which ended up being out of required scope.
           </p>
           <p>
             Elan Sami Aboud:
@@ -256,7 +268,7 @@
         <h2 class="title is-3">Declaration of Gen AI:</h2>
         <div class="content has-text-justified">
           <p>
-            write declaration here
+            Codex was used to help fix bugs and issues when we got stuck, and quick troubleshooting during the physical testing. Helped explain the issue and let us understand how to fix it.
           </p>
         </div>
       </div>
