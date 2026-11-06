@@ -176,7 +176,7 @@
            In the real-robot version it has no landmark updates, so the camera and LiDAR don’t correct it. Instead they locate the dock marker and the wall behind it, which sets the docking target.
           </p>
           <p>
-            We also use them to compute an odometry-free reference pose to check the filter against. In our runs the EKF ended within about 3 cm and 1° of that reference. Its uncertainty bands were much wider than the real error, so it is accurate but over-cautious.
+            We also use them to compute an odometry-free reference pose to check the filter against. In our runs the EKF ended within about 5 cm and 2° of that reference. Its uncertainty bands were much wider than the real error, so it is accurate but over-cautious.
           </p>
           <p>
             <strong>Controller:</strong>
@@ -195,7 +195,7 @@
             After determining how much inaccuracy is acceptable for docking, the weights were adjusted by sweeping the control effort weighting and selecting the value that produced the best tracking for the least amount of steering. As the robot's behaviour changes with speed, the controller gains are recalculated across a range of speeds. The robot also slows down for tight curves and when the EKF is less certain of its position, it additionally finishes with a straight approach in front of the marker to ensure it arrives square to the dock.
           </p>
           <p>
-            Testing over 100 randomised trials showed the robot docked successfully every time. Most of the remaining tracking error came from the position estimate rather than the controller, as the same controller tracked much more closely when given the true position.
+            Testing over 100 randomised trials in the part d controller rig showed the robot docked successfully every time. Most of the remaining tracking error came from the position estimate rather than the controller, as the same controller tracked much more closely when given the true position.
           </p>
 
 
@@ -345,7 +345,7 @@ cd SensorsAndControlIP/integrated_project
 python models/build_scene.py   # first time only: builds the MuJoCo scene
 python run_track.py            # runs the simulation in the MuJoCo viewer</code></pre>
           <p>Each run uses a new random layout, start pose and dock position.
-            Optional flags: <code>--seed N</code> repeats a layout, <code>--beacon</code> uses the high beacon marker
+            Optional flags: <code>--seed N</code> repeats a layout
             with low obstacles, <code>--no-viewer</code> runs without the window.
             On macOS, use <code>mjpython</code> instead of <code>python</code>.</p>
         </div>
