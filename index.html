@@ -236,7 +236,7 @@
           </table>
 
           <h3 class="title is-4">Simulation: docking results</h3>
-          <video src="./static/videos/sims_beacon_side_by_side.mp4" controls muted playsinline style="width:100%"></video>
+          <video src="./sims_beacon_side_by_side.mp4" controls muted playsinline style="width:100%"></video>
           <p><i>Three randomised layouts (random start, dock position along the wall, beacon offset and low obstacles), real time.</i></p>
           <table class="table is-fullwidth is-striped is-narrow">
             <thead><tr><th>Layout</th><th>Dock marker first seen</th><th>Docked after</th><th>Docking error vs true dock</th><th>Collisions</th></tr></thead>
@@ -254,7 +254,7 @@
           </p>
 
           <h3 class="title is-4">Simulation: estimate and uncertainty against the true state</h3>
-          <img src="./static/images/ekf_vs_truth.png" alt="EKF estimate with 2-sigma bands against ground truth" style="width:100%">
+          <img src="./ekf_vs_truth.png" alt="EKF estimate with 2-sigma bands against ground truth" style="width:100%">
           <p><i>Layout A. Left: true path, EKF estimate and 2&sigma; position ellipses every 2 s (true scale). Right:
             estimation error with the &plusmn;2&sigma; band. Ground truth is used for evaluation only.</i></p>
           <table class="table is-fullwidth is-striped is-narrow">
@@ -267,7 +267,7 @@
           </table>
 
           <h3 class="title is-4">Hardware results</h3>
-<img src="./static/images/real_ekf.png" alt="Real TurtleBot run: EKF estimate with 3-sigma bands against camera and LiDAR reference poses" style="width:100%">
+<img src="./real_ekf.png" alt="Real TurtleBot run: EKF estimate with 3-sigma bands against camera and LiDAR reference poses" style="width:100%">
 <p><i>Real TurtleBot run (about 62 s, 5.5 m). Top: EKF path with 3&sigma; ellipses, plus reference poses (red).
   Below: each state over time and estimate minus reference, with the &plusmn;3&sigma; band.</i></p>
 <p>
