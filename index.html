@@ -242,7 +242,7 @@
               <tr><td>Gain schedule</td><td>15 speeds, from 0.03 m/s</td></tr>
               <tr><td>Lateral / longitudinal accel. limits</td><td>0.25 / 0.30 m/s&sup2;</td></tr>
               <tr><td rowspan="2">Estimator</td><td>Camera noise assumed (R)</td><td>&sigma;<sub>r</sub> = 0.01 + 0.02&middot;r m, &sigma;<sub>b</sub> = 1&deg;</td></tr>
-              <tr><td>Odometry noise (Q)</td><td>TODO (Part C)</td></tr>
+              &sigma;<sub>wheel</sub> = 0.15&middot;|&Delta;&phi;| + 10<sup>&minus;4</sup> rad per step (deliberately inflated)
               <tr><td rowspan="4">LiDAR navigation</td><td>Scan</td><td>360 beams, 0.12&ndash;3.5 m, 5 Hz, &sigma; = 1 cm (sim)</td></tr>
               <tr><td>Grid cell / log-odds hit, free, clamp</td><td>5 cm / +0.85, &minus;0.40, &plusmn;4</td></tr>
               <tr><td>Planning inflation (fallback) / robot radius</td><td>0.30 m (0.24 m) / 0.22 m</td></tr>
