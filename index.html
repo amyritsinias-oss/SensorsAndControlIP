@@ -207,15 +207,111 @@
     <!-- Parameter values and quantitative results. -->
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Parameter values and quantitative results:</h2>
+        <h2 class="title is-3">Parameter values and quantitative results</h2>
         <div class="content has-text-justified">
+
+          <h3 class="title is-4">Parameter values</h3>
+          <table class="table is-fullwidth is-striped is-narrow">
+            <thead><tr><th>Component</th><th>Parameter</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td rowspan="3">Robot</td><td>Wheel radius / track width</td><td>0.033 m / 0.288 m (sim), 0.287 m (real)</td></tr>
+              <tr><td>Max speed / turn rate</td><td>0.26 m/s / 1.82 rad/s (real robot limited to 0.8 rad/s to reduce camera blur)</td></tr>
+              <tr><td>Encoder resolution</td><td>4096 ticks/rev</td></tr>
+              <tr><td rowspan="6">Controller</td><td>Control period T</td><td>0.05 s (20 Hz)</td></tr>
+              <tr><td>Cruise speed v<sub>nom</sub></td><td>0.20 m/s (sim), 0.10 m/s (real)</td></tr>
+              <tr><td>Bryson limits e<sub>y</sub> / e<sub>&theta;</sub> / z / u</td><td>0.05 m / 0.15 rad / 0.05 m&middot;s / 0.60 rad/s</td></tr>
+              <tr><td>Effort scale &rho;</td><td>5.0 (from the effort-weight sweep)</td></tr>
+              <tr><td>Gain schedule</td><td>15 speeds, from 0.03 m/s</td></tr>
+              <tr><td>Lateral / longitudinal accel. limits</td><td>0.25 / 0.30 m/s&sup2;</td></tr>
+              <tr><td rowspan="2">Estimator</td><td>Camera noise assumed (R)</td><td>&sigma;<sub>r</sub> = 0.01 + 0.02&middot;r m, &sigma;<sub>b</sub> = 1&deg;</td></tr>
+              <tr><td>Odometry noise (Q)</td><td>TODO (Part C)</td></tr>
+              <tr><td rowspan="4">LiDAR navigation</td><td>Scan</td><td>360 beams, 0.12&ndash;3.5 m, 5 Hz, &sigma; = 1 cm (sim)</td></tr>
+              <tr><td>Grid cell / log-odds hit, free, clamp</td><td>5 cm / +0.85, &minus;0.40, &plusmn;4</td></tr>
+              <tr><td>Planning inflation (fallback) / robot radius</td><td>0.30 m (0.24 m) / 0.22 m</td></tr>
+              <tr><td>Safety stop / replan cooldown</td><td>0.25 m within &plusmn;30&deg; / 1 s</td></tr>
+              <tr><td rowspan="3">Docking</td><td>Standoff / straight approach</td><td>0.35 m / 0.70 m (sim), 0.30 m (real)</td></tr>
+              <tr><td>Markers (ArUco 4x4_50)</td><td>Sim: beacon id 6, 0.30 m, 0.72 m high; dock id 0, 0.15 m. Real: beacon id 3, 0.10 m; dock id 0, 0.15 m</td></tr>
+              <tr><td>Target lock</td><td>&ge; 5 dock-marker sightings and within ~0.85 m</td></tr>
+            </tbody>
+          </table>
+
+          <h3 class="title is-4">Simulation: docking results</h3>
+          <video src="./static/videos/sims_beacon_side_by_side.mp4" controls muted playsinline style="width:100%"></video>
+          <p><i>Three randomised layouts (random start, dock position along the wall, beacon offset and low obstacles), real time.</i></p>
+          <table class="table is-fullwidth is-striped is-narrow">
+            <thead><tr><th>Layout</th><th>Dock marker first seen</th><th>Docked after</th><th>Docking error vs true dock</th><th>Collisions</th></tr></thead>
+            <tbody>
+              <tr><td>A</td><td>16 s</td><td>44 s</td><td>1.3 cm, 0.3&deg;</td><td>0</td></tr>
+              <tr><td>B</td><td>32 s</td><td>46 s</td><td>1.4 cm, 0.9&deg;</td><td>0</td></tr>
+              <tr><td>C</td><td>10 s</td><td>27 s</td><td>2.9 cm, 0.1&deg;</td><td>0</td></tr>
+            </tbody>
+          </table>
           <p>
-            need to add in param values and quantitative results. Maybe we could add results from both the hardware and sim? 
-            or like add in a sim vid and discuss the results. would be good to add some graphs in here i think and describe them.
+            Three further beacon layouts also docked without collisions, 2.2&ndash;3.6 cm from the true dock, but took
+            52&ndash;81 s because of repeated replanning near the barrier. In an earlier version of the environment, where
+            the dock position was given to the robot, it docked in 30 of 30 randomised layouts with a moving obstacle and in
+            19 of 20 static layouts.
           </p>
-          </div>
+
+          <h3 class="title is-4">Simulation: estimate and uncertainty against the true state</h3>
+          <img src="./static/images/ekf_vs_truth.png" alt="EKF estimate with 2-sigma bands against ground truth" style="width:100%">
+          <p><i>Layout A. Left: true path, EKF estimate and 2&sigma; position ellipses every 2 s (true scale). Right:
+            estimation error with the &plusmn;2&sigma; band. Ground truth is used for evaluation only.</i></p>
+          <table class="table is-fullwidth is-striped is-narrow">
+            <thead><tr><th>Layout</th><th>Truth inside &plusmn;2&sigma;: x</th><th>y</th><th>heading</th><th>Max error x / y / heading</th></tr></thead>
+            <tbody>
+              <tr><td>A</td><td>58 %</td><td>100 %</td><td>100 %</td><td>9.6 cm / 5.4 cm / 1.0&deg;</td></tr>
+              <tr><td>B</td><td>100 %</td><td>100 %</td><td>100 %</td><td>3.8 cm / 3.0 cm / 1.6&deg;</td></tr>
+              <tr><td>C</td><td>56 %</td><td>100 %</td><td>100 %</td><td>6.8 cm / 2.2 cm / 0.3&deg;</td></tr>
+            </tbody>
+          </table>
+
+          <h3 class="title is-4">Hardware results</h3>
+<img src="./static/images/real_ekf.png" alt="Real TurtleBot run: EKF estimate with 3-sigma bands against camera and LiDAR reference poses" style="width:100%">
+<p><i>Real TurtleBot run (about 62 s, 5.5 m). Top: EKF path with 3&sigma; ellipses, plus reference poses (red).
+  Below: each state over time and estimate minus reference, with the &plusmn;3&sigma; band.</i></p>
+<p>
+  The real robot has no ground truth, so the reference is a pose computed without odometry. When the dock
+  marker is in view, the camera (solvePnP on the marker) and a LiDAR fit of the wall behind it give the robot's
+  position and heading relative to the known dock. This reference was only available near the dock (between 42 and
+  56 s), which gave 8 comparison points.
+</p>
+<table class="table is-fullwidth is-striped is-narrow">
+  <thead><tr><th></th><th>x</th><th>y</th><th>heading</th></tr></thead>
+  <tbody>
+    <tr><td>Estimate &minus; reference (range)</td><td>&minus;5 to &minus;1 cm</td><td>within &plusmn;3 cm</td><td>within &plusmn;2&deg;</td></tr>
+    <tr><td>3&sigma; bound at the end of the run</td><td>&plusmn;0.14 m</td><td>&plusmn;1.5 m</td><td>&plusmn;28&deg;</td></tr>
+    <tr><td>Reference inside 3&sigma;</td><td>8 / 8</td><td>8 / 8</td><td>8 / 8</td></tr>
+  </tbody>
+</table>
+<p>
+  The estimate stayed within a few centimetres and degrees of the reference, but the uncertainty grew steadily
+  because the encoder process noise Q is set conservatively and the run had few marker updates. So the hardware
+  filter is consistent, but over-cautious: in y it is about 50 times wider than the actual error. The real robot
+  docked successfully (see the hardware demo video). Measured final docking offset: TODO.
+</p>
+          
+          <h3 class="title is-4">What the results do and do not show</h3>
+          <ul>
+            <li><b>The simulation EKF is overconfident along the direction of travel.</b> y and heading stay inside the
+              2&sigma; band, but x (towards the dock) is outside it for up to 44 % of the run. The cause is a range bias in
+              long-range ArUco detection (+2&ndash;6 cm beyond 2.5 m, measured against ground truth), which the filter
+              treats as random noise. Camera calibration and a range-dependent R would address it. On the real robot, without
+              landmark updates, the EKF was instead over-cautious.</li>
+            <li><b>Unmeasured disturbances break localisation.</b> After a sideways push (13.5 N for 0.4 s) the position
+              estimate ended about 1 m from the truth, and with a 4 % worn wheel the heading estimate drifted by 20&deg;.
+              The wheels do not measure a push, and the camera corrections afterwards were rejected as outliers by the
+              EKF's gate. After the push the robot still reached the dock (3.6 cm and 16 cm lateral error in two runs),
+              because the dock is re-measured relative to the robot; with the worn wheel it docked 43 cm off to the side.</li>
+            <li><b>The LiDAR is 2D</b> (scan plane 0.145 m). Anything lower than that is invisible to the planner, and the
+              map smears if the EKF pose drifts.</li>
+            <li><b>Grid A* ignores the robot's motion limits</b>; smoothness comes from the controller's path, and each
+              replan resets the controller (reduced by the 1 s cooldown).</li>
+          </ul>
+        </div>
       </div>
     </div>
+  </div>
 </section>
 
 <section class="section">
@@ -244,7 +340,7 @@
             Dominik Raffoul: Developed the path-following and docking controller which encompasses its design, tuning, gain scheduling and evaluation. Assisted Amy on part A through working on the path-error state-space model and controllability analysis. In addition, constructed the inital MuJoCo scene for the simulation and have also contributed to the github project page. 
           </p>
           <p>
-            Max Bakulic: Created the lidar and obstacle detection/navigation component with the aid of an occupancy grid. Helped tune the simulation camera and docking sequence. Created the simulation video and graphs for the final video submission.
+            Max Bakulic: Created the lidar and obstacle detection/navigation component with the aid of an occupancy grid. Helped tune the simulation camera and docking sequence. Created the simulation video and graphs for the final video submission, which included multiple side by side runs, with ekf vs ground truth graphs to analyse.
           </p>
           <p>
             Amy Ritsinias: Collaborated with Dominik on part A. Helped Elan set up the hardware turtlebot and commenced early testing in the mechatronics lab for the real run. Set up the github and initial project page layout. Created moving obstacles in the sim which ended up being out of required scope.
