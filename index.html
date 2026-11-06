@@ -131,11 +131,40 @@
           <p>
             Testing the controllability of the model while the robot has velocity demonstrates that the system is controllable with a result of rank = 3, matching the number of states in the model. However at 0 velocity the rank drops to 1 as a stationary robot can turn but cannot reduce lateral error.
           </p>
+                   <p>
+            <strong>Frames:</strong>
+          </p>
+          <img src="./frame_diagram.png" alt="Frame diagram: world, base, camera, LiDAR and marker frames" style="width:100%">
           <p>
-          Frame diagram:
+            The world frame W has its origin at the room's corner (on the real robot, at its start pose), with x and y along
+            the floor and z up. The base frame B sits at the midpoint of the wheel axle with x forward and y to the left; the
+            EKF state [x, y, &theta;] is the pose of B in W. The camera C is 0.086 m ahead of B and 0.107 m up. It uses OpenCV
+            axes (z forward along the optical axis, y down, x right), so ArUco poses from solvePnP are rotated into B before
+            use. The LiDAR L is 0.049 m behind B and scans a horizontal plane 0.145 m above the floor. Each marker M has its own
+            frame, with its normal n<sub>M</sub> pointing out of the wall into the room.
           </p>
           <p>
-            whoever did part B do this part
+            <strong>Sensing: LiDAR and camera:</strong>
+          </p>
+          <p>
+            The 2D LiDAR (360 beams, 0.12&ndash;3.5 m) is used for obstacle avoidance. Each scan is placed in the world frame
+            using the EKF pose and added to a 5 cm log-odds occupancy grid. A beam's endpoint raises the chance that a cell is
+            occupied, and the cells along the beam lower it, so the map can tolerate noise and clear an obstacle that has
+            moved. The occupied cells are inflated by 0.30 m, about the robot's radius plus a safety margin. A* then plans
+            the shortest collision free path through the grid, and the path is shortened to straight segments that the
+            controller can follow. If a new scan shows an obstacle on the current path, the robot replans (at most once per
+            second). If something comes within 0.25 m in front of it, the robot stops, and if it is stuck it backs up and
+            replans. This is important as in preliminary testing we ran into issues where it would get itself stuck and not move out.
+          </p>
+          <p>
+            The forward Pi camera detects ArUco markers and uses solvePnP to find each marker's position
+            relative to the robot. In the simulation, markers at known positions give range and bearing updates to the EKF.
+            The camera also finds the dock by seeing a large beacon marker mounted high so that it can be seen over the low obstacles from the
+            start and gives a rough target. Once the smaller dock marker below it is seen, the beacon is ignored, and the
+            target is set from the dock marker only. The camera gives the dock's position well, but from far away
+            its estimate of which way the marker faces is poor. Instead, a line is fitted to the LiDAR points on the wall around the
+            marker, and the wall's normal gives the docking direction to about a degree. The target locks once the robot is
+            close, so it approaches the dock straight and steady.
           </p>
           <p>
             <strong>Estimator:</strong>
