@@ -272,7 +272,7 @@
   Below: each state over time and estimate minus reference, with the &plusmn;3&sigma; band.</i></p>
 <p>
   The real robot has no ground truth, so the reference is a pose computed without odometry. When the dock
-  marker is in view, the camera (solvePnP on the marker) and a LiDAR fit of the wall behind it give the robot's
+  marker is in view, the camera and LiDAR give the robot's
   position and heading relative to the known dock. This reference was only available near the dock (between 42 and
   56 s), which gave 8 comparison points.
 </p>
@@ -287,8 +287,8 @@
 <p>
   The estimate stayed within a few centimetres and degrees of the reference, but the uncertainty grew steadily
   because the encoder process noise Q is set conservatively and the run had few marker updates. So the hardware
-  filter is consistent, but over-cautious: in y it is about 50 times wider than the actual error. The real robot
-  docked successfully (see the hardware demo video). Measured final docking offset: TODO.
+  filter is consistent, but over cautious: in y it is about 50 times wider than the actual error. The real robot
+  docked successfully.
 </p>
           
           <h3 class="title is-4">What the results do and do not show</h3>
@@ -316,18 +316,25 @@
 
 <section class="section">
   <div class="container is-max-desktop">
-    <!-- install and run instructions. -->
+    <!-- Install and run. -->
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Install and run instructions:</h2>
+        <h2 class="title is-3">Running the simulation</h2>
         <div class="content has-text-justified">
-          <p>
-            I know we will have this on the actual github but might be good to duplicate and have here as well
-            as the marking criteria is a little vague.
-          </p>
-          </div>
+          <p>Requires Python 3.10+ with <code>mujoco</code>, <code>numpy</code>, <code>scipy</code>,
+            <code>matplotlib</code> and <code>opencv-contrib-python</code> installed.</p>
+<pre><code>git clone https://github.com/amyritsinias-oss/SensorsAndControlIP.git
+cd SensorsAndControlIP/integrated_project
+python models/build_scene.py   # first time only: builds the MuJoCo scene
+python run_track.py            # runs the simulation in the MuJoCo viewer</code></pre>
+          <p>Each run uses a new random layout, start pose and dock position.
+            Optional flags: <code>--seed N</code> repeats a layout, <code>--beacon</code> uses the high beacon marker
+            with low obstacles, <code>--no-viewer</code> runs without the window.
+            On macOS, use <code>mjpython</code> instead of <code>python</code>.</p>
+        </div>
       </div>
     </div>
+  </div>
 </section>
 
 <section class="section">
