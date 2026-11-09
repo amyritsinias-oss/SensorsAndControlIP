@@ -1,5 +1,17 @@
 # SensorsAndControlIP
-Group 22
+## Project introduction:
+
+## Group info:
+Group 22 
+
+Dominik Raffoul 
+
+Max Bakulic 
+
+Amy Ritsinias 
+
+Elan Sami Aboud 
+
 
 ## Resources
 
