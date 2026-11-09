@@ -1,3 +1,13 @@
+"""Robot camera feed with live ArUco detection.
+
+Renders what the TurtleBot's forward Pi camera sees, detects the ArUco markers in that image,
+and turns each one into a range and bearing in the robot's base frame - the measurement the
+EKF uses. Optionally shows the feed in its own window with the markers outlined and labelled.
+
+    cam = ArucoCameraView(model)
+    detections = cam.read(data)        # [(marker_id, range [m], bearing [rad]), ...]
+    cam.overlay(viewer)                # draw the annotated feed inside the MuJoCo viewer (top-right)
+"""
 import cv2
 import mujoco
 import numpy as np
@@ -5,6 +15,7 @@ import numpy as np
 MARKER_DICT = cv2.aruco.DICT_4X4_50
 MARKER_SIZE = 0.15          # m, black square side - must match models/build_scene.py
 MARKER_SIZES = {0: 0.24}    # per-id overrides: the dock (id 0) carries a bigger tag so it is readable from across the room
+MARKER_LABELS = {0: "DOCK"}  # names drawn on the camera feed (run_track adds "BEACON" in beacon mode)
 
 
 class ArucoCameraView:
@@ -59,7 +70,9 @@ class ArucoCameraView:
                 rng, brg = float(np.hypot(p[0], p[1])), float(np.arctan2(p[1], p[0]))
                 detections.append((int(mid), rng, brg))
                 labels.append((c, int(mid), rng, brg, rvec, tvec))
+                R_cm, _ = cv2.Rodrigues(rvec)
                 self.last_obs.append(dict(id=int(mid), range=rng, bearing=brg, p_base=p,
+                                          normal_base=self.R_bc @ R_cm[:, 2],   # marker's facing direction
                                           pixels=float(np.ptp(c[0][:, 0]))))
         self._draw(rgb, labels)
         return detections
@@ -70,7 +83,7 @@ class ArucoCameraView:
             pts = c[0].astype(int)
             cv2.polylines(img, [pts], True, (0, 255, 0), 2)
             cv2.drawFrameAxes(img, self.K, self.dist, rvec, tvec, MARKER_SIZES.get(mid, MARKER_SIZE) * 0.5, 2)
-            tag = "DOCK" if mid == 0 else f"id {mid}"
+            tag = MARKER_LABELS.get(mid, f"id {mid}")
             x, y = pts[:, 0].min(), max(pts[:, 1].min() - 10, 20)
             cv2.putText(img, f"{tag}  {rng:.2f} m  {np.rad2deg(brg):+.1f} deg", (int(x), int(y)),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2, cv2.LINE_AA)
