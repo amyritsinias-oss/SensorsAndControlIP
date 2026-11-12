@@ -1,23 +1,11 @@
-"""Real-robot version of run_track.py: start zone -> dock zone over rosbridge.
+"""Real-robot run: start zone -> dock marker over rosbridge.
 
-Same pipeline as the simulation, unchanged:
-    DockFinder (dock ArUco + LiDAR wall fit) -> OccupancyGrid + A* Navigator -> LQI PathFollower
-Only the sensors and motors are swapped:
-    MuJoCo LiDAR rays      -> robot /scan          (RealLidar)
-    MuJoCo camera render   -> robot camera image    (RealCamera)
-    MuJoCo encoder sensors -> robot /joint_states   (read_ticks)
-    data.ctrl + mj_step    -> robot.send_command(v, w)
+Same pipeline as the simulation (DockFinder -> OccupancyGrid + A* Navigator -> LQI PathFollower);
+only the sensors and motors are swapped. World frame = robot start (0, 0), facing +x.
 
-World frame = where the robot starts: (0, 0), facing +x. The dock marker must be visible
-from the start. There are no landmark markers, so the EKF runs on wheel odometry and the
-dock target is refined every time the dock marker is seen again.
-
-Put this file in integrated_project/ (next to run_track.py) and run:
-    python integrated_project/run_real.py 192.168.1.213
-    python integrated_project/run_real.py 192.168.1.213 --v-nom 0.10 --show
+Usage (from integrated_project/):
+    python integrated_project/run_real.py 192.168.1.213 [--v-nom 0.10] [--show]
 Ctrl+C stops the robot.
-
->>> Fill in the MEASURE values below before the first run. <<<
 """
 import argparse
 import sys
@@ -27,7 +15,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent                     # integrated_project/
+ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "planning"))
 sys.path.insert(0, str(ROOT / "part_d"))
@@ -35,41 +23,38 @@ sys.path.insert(0, str(ROOT / "part_d"))
 from navigator import Navigator                             # noqa: E402
 from occupancy_grid import OccupancyGrid                    # noqa: E402
 from tb3_control import RobotParams, ControllerParams, PathFollower, Path as RefPath  # noqa: E402
-from sim.ekf_standin import OdomArucoEKF                    # noqa: E402   <- swap for the Part C EKF
+from sim.ekf_standin import OdomArucoEKF                    # noqa: E402
 from dock_finder import DockFinder                          # noqa: E402
 from rosbridge_api import RosbridgeRobot                    # noqa: E402
 
-# ============================ MEASURE / SET THESE ============================
-DOCK_ID = 0
-MARKER_SIZE = 0.15           # m, BLACK square side of the dock marker (measure to the mm)
-# Optional high "beacon" marker, mounted DIRECTLY ABOVE the dock marker (same wall, same x/y),
-# so the robot can see it over the obstacles from far away. Set BEACON_ID = None to disable.
-BEACON_ID = 3
-BEACON_SIZE = 0.10           # m, BLACK square side of the beacon marker
+# ---- settings ----
+DOCK_ID, MARKER_SIZE = 0, 0.10          # low dock marker: id, black-square side [m]
+BEACON_ID, BEACON_SIZE = 1, 0.15        # high beacon directly above the dock marker (None to disable)
 MARKER_SIZES = {DOCK_ID: MARKER_SIZE, BEACON_ID: BEACON_SIZE}
-CALIB_FILE = None             # e.g. "calib.npz" with arrays K (3x3) and dist (from Part B). None = guessed K
-GUESS_HFOV_DEG = 29.0         # Pi Camera v2 horizontal FOV, only used when CALIB_FILE is None
+CALIB_FILE = None                       # npz with K, dist; None = guessed intrinsics
+CAM_YAW_DEG = 0.0                       # camera bearing correction
+GUESS_HFOV_DEG = 29.0                   # used when CALIB_FILE is None
 
-# Camera position in the robot base frame (origin = middle of the wheel axle on the floor,
-# x forward, y left, z up) [m]
-CAM_POS = np.array([0.073, 0.0, 0.10])     # MEASURE: forward, left, height of the lens
-LIDAR_OFFSET = np.array([-0.064, 0.0])     # MEASURE: LiDAR centre forward/left of the axle middle
+CAM_POS = np.array([0.073, 0.0, 0.10])          # lens position in the base frame [m]
+LIDAR_OFFSET = np.array([-0.064, 0.0])          # LiDAR centre relative to the axle middle [m]
 
-# Robot: Waffle Pi defaults. Burger: track 0.160, v_max 0.22, w_max 2.84
-WHEEL_R, TRACK = 0.033, 0.287
-V_MAX, W_MAX = 0.26, 0.8          # W_MAX lowered from 1.82: fast turns blur the camera
+WHEEL_R, TRACK = 0.033, 0.287                   # Waffle Pi
+V_MAX, W_MAX = 0.26, 0.5
 LEFT_JOINT, RIGHT_JOINT = "wheel_left_joint", "wheel_right_joint"
 
-DOCK_STANDOFF = 0.35          # MEASURE/SET: marker -> robot centre when docked [m]
-APPROACH_LEN = 0.50           # straight final approach [m]; start must be > STANDOFF + APPROACH_LEN + ~0.3 from the dock
+DOCK_STANDOFF = 0.30                    # marker -> robot centre when docked [m]
+APPROACH_LEN = 0.55                     # straight final approach [m]
+GRID = dict(x_min=-0.5, y_min=-3.0, width=8.0, height=6.0, res=0.05)
 
-# Occupancy grid around the start (robot starts at (0,0) facing +x, the dock is ahead)
-GRID = dict(x_min=-0.5, y_min=-3.0, width=8.0, height=6.0, res=0.05)   # covers 7.5 m ahead, 3 m each side
-# ============================================================================
+TICKS_PER_REV = 4096
+CAMERA_EVERY = 2                        # ArUco every 2nd control step
+SCAN_STALE_S = 1.0                      # stop if no LiDAR scan for this long
+OUTLIER_DIST = 0.6                      # reject sightings this far from the established target [m]
+DETOUR_WAIT_SCANS = 25                  # hold still this many scans before accepting a long detour
 
-TICKS_PER_REV = 4096          # what the stand-in EKF expects (k = 2*pi/4096)
-CAMERA_EVERY = 2              # run ArUco every 2nd control step (10 Hz at T = 0.05)
-SCAN_STALE_S = 1.0            # stop if no new LiDAR scan for this long
+
+def wrap(a):
+    return (np.asarray(a) + np.pi) % (2 * np.pi) - np.pi
 
 
 def ekf_sigma(r):
@@ -77,8 +62,6 @@ def ekf_sigma(r):
 
 
 class RealLidar:
-    """Same attributes the Navigator / OccupancyGrid use from the sim Lidar."""
-
     def __init__(self, n_beams=360, range_min=0.12, range_max=3.5, offset=LIDAR_OFFSET):
         self.n = n_beams
         self.angles = np.linspace(0, 2 * np.pi, n_beams, endpoint=False)
@@ -86,13 +69,12 @@ class RealLidar:
         self.offset = np.asarray(offset, float)
 
     def from_scan(self, scan):
-        """Robot LaserScan -> n_beams ranges at self.angles; no return / invalid -> inf (like the sim)."""
         r = np.asarray(scan.ranges, float)
         a = np.mod(np.asarray(scan.angles, float), 2 * np.pi)
         good = np.isfinite(r) & (r >= self.range_min) & (r <= self.range_max)
         out = np.full(self.n, np.inf)
         idx = np.round(a[good] / (2 * np.pi / self.n)).astype(int) % self.n
-        np.minimum.at(out, idx, r[good])       # nearest beam; keep the closest if two land together
+        np.minimum.at(out, idx, r[good])
         return out
 
     def to_world(self, ranges, pose):
@@ -105,22 +87,21 @@ class RealLidar:
 
 
 class RealCamera:
-    """ArUco detection on the robot image; same outputs as camera_view.ArucoCameraView.read()."""
+    """ArUco detection; returns marker range/bearing/position in the robot base frame."""
 
     def __init__(self):
         self.K = self.dist = None
         if CALIB_FILE:
             c = np.load(CALIB_FILE)
             self.K, self.dist = c["K"], c["dist"]
-        # OpenCV camera (x right, y down, z forward) -> robot base (x forward, y left, z up)
-        self.R_bc = np.array([[0, 0, 1], [-1, 0, 0], [0, -1, 0]], float)
-        self.t_bc = CAM_POS
+        cy, sy = np.cos(np.deg2rad(CAM_YAW_DEG)), np.sin(np.deg2rad(CAM_YAW_DEG))
+        R_cam = np.array([[0, 0, 1], [-1, 0, 0], [0, -1, 0]], float)      # camera -> base axes
+        self.R_bc = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]]) @ R_cam
         self.obj = {}
         for mid, size in MARKER_SIZES.items():
-            if mid is None:
-                continue
-            s = size / 2
-            self.obj[mid] = np.array([[-s, s, 0], [s, s, 0], [s, -s, 0], [-s, -s, 0]], np.float32)
+            if mid is not None:
+                s = size / 2
+                self.obj[mid] = np.array([[-s, s, 0], [s, s, 0], [s, -s, 0], [-s, -s, 0]], np.float32)
         params = cv2.aruco.DetectorParameters()
         params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
         self.detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50), params)
@@ -131,24 +112,43 @@ class RealCamera:
         if self.K is None:
             f = (w / 2) / np.tan(np.deg2rad(GUESS_HFOV_DEG) / 2)
             self.K, self.dist = np.array([[f, 0, w / 2], [0, f, h / 2], [0, 0, 1.0]]), np.zeros(5)
-            print(f"camera {w}x{h}, no calibration file: using a guessed K (f = {f:.0f} px)")
         corners, ids, _ = self.detector.detectMarkers(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
-        dets, self.last_obs = [], []
+        self.last_obs = []
         if ids is not None:
             cv2.aruco.drawDetectedMarkers(img, corners, ids)
             for c, mid in zip(corners, ids.ravel()):
-                if int(mid) not in self.obj:
+                mid = int(mid)
+                if mid not in self.obj:
                     continue
-                ok, rvec, tvec = cv2.solvePnP(self.obj[int(mid)], c[0], self.K, self.dist, flags=cv2.SOLVEPNP_IPPE_SQUARE)
+                ok, rvec, tvec = cv2.solvePnP(self.obj[mid], c[0], self.K, self.dist, flags=cv2.SOLVEPNP_IPPE_SQUARE)
                 if not ok:
                     continue
-                p = self.R_bc @ tvec.ravel() + self.t_bc
-                rng, brg = float(np.hypot(p[0], p[1])), float(np.arctan2(p[1], p[0]))
-                dets.append((int(mid), rng, brg))
-                self.last_obs.append(dict(id=int(mid), range=rng, bearing=brg, p_base=p,
-                                          pixels=float(np.ptp(c[0][:, 0]))))
+                p = self.R_bc @ tvec.ravel() + CAM_POS
+                n = self.R_bc @ cv2.Rodrigues(rvec)[0][:, 2]              # direction the marker faces
+                self.last_obs.append(dict(id=mid, range=float(np.hypot(p[0], p[1])),
+                                          bearing=float(np.arctan2(p[1], p[0])), p_base=p,
+                                          phi_pnp=float(np.arctan2(n[1], n[0]))))
         self.last_frame = img
-        return dets
+
+
+def wall_facing_in_base(lidar, ranges, marker_xy_base, radius=0.5):
+    """Wall normal (towards the robot) from a LiDAR line fit around the marker, or None."""
+    if ranges is None:
+        return None
+    ok = np.isfinite(ranges)
+    a = lidar.angles[ok]
+    pts = lidar.offset + np.column_stack([ranges[ok] * np.cos(a), ranges[ok] * np.sin(a)])
+    near = pts[np.hypot(pts[:, 0] - marker_xy_base[0], pts[:, 1] - marker_xy_base[1]) < radius]
+    if len(near) < 8:
+        return None
+    c = near.mean(axis=0)
+    _, sv, vt = np.linalg.svd(near - c)
+    if sv[1] > 0.2 * sv[0]:
+        return None
+    n = np.array([-vt[0, 1], vt[0, 0]])
+    if np.dot(-c, n) < 0:
+        n = -n
+    return float(np.arctan2(n[1], n[0]))
 
 
 def read_ticks(robot):
@@ -164,51 +164,59 @@ def read_ticks(robot):
 
 def run(host, v_nom, t_max, show):
     rp = RobotParams(wheel_radius=WHEEL_R, track_width=TRACK, v_max=V_MAX, w_max=W_MAX)
-    # sigma_slow off: with no landmark markers the EKF position uncertainty only grows, which would
-    # slow the robot to creep speed; the dock target is re-measured by the camera instead
-    cp = ControllerParams(v_nom=v_nom, sigma_slow=1e9)
+    cp = ControllerParams(v_nom=v_nom, sigma_slow=1e9)      # no landmarks: don't slow down as sigma grows
     lidar, camera = RealLidar(), RealCamera()
     grid = OccupancyGrid(**GRID)
-    nav = Navigator(lidar, grid, RefPath, None, None, None)
-    dock = DockFinder(DOCK_STANDOFF, APPROACH_LEN)
+    nav = Navigator(lidar, grid, RefPath, None, None, None,
+                    inflate=0.25, tight_inflate=0.20, robot_radius=0.18)
+    dock = DockFinder(DOCK_STANDOFF, APPROACH_LEN, freeze_dist=0.4)
     ekf = OdomArucoEKF(np.zeros(3), np.diag([1e-4, 1e-4, np.deg2rad(1) ** 2]), rp, {}, ekf_sigma)
-    log = {"t": [], "est": [], "cmd": [], "plans": []}
+    log = {"t": [], "est": [], "P": [], "plans": [], "cam": []}
 
     with RosbridgeRobot(host) as robot:
-        print("connected - waiting for encoders and LiDAR ...")
         t_wait = time.time()
         while read_ticks(robot) is None or robot.query_laser_scan(timeout=0.5) is None:
             if time.time() - t_wait > 10:
                 raise SystemExit("no /joint_states or /scan from the robot after 10 s")
         ekf.predict(read_ticks(robot))
-        print("running. Ctrl+C to stop.")
 
         ctrl, stop, info, scan_world, ranges = None, False, {"done": False}, None, None
-        stopped_for, backing_up, retarget = 0, 0, False
-        t0 = last_scan_t = time.time()
-        k, slow_steps = 0, 0
-        last_seen = None
+        stopped_for = backing_up = detour_wait = k = 0
+        retarget = dock_marker_seen = False
+        last_scan_t = t0 = time.time()
         try:
             while time.time() - t0 < t_max:
                 t_wall = time.time()
                 t = t_wall - t0
-                # ---------------- sensing + estimation ----------------
+
+                # ---- sensing + estimation ----
                 if k % CAMERA_EVERY == 0:
                     img = robot.query_image(timeout=0, wait_for_new=True)
                     if img is not None:
                         camera.read(img)
-                        # prefer the dock marker; use the beacon (directly above it) when the dock one is hidden
-                        dock_obs = ([o for o in camera.last_obs if o["id"] == DOCK_ID]
-                                    or [o for o in camera.last_obs if o["id"] == BEACON_ID])
+                        for o in camera.last_obs:
+                            if o["id"] == DOCK_ID:
+                                log["cam"].append(dict(t=t, p=o["p_base"].copy(), phi_pnp=o["phi_pnp"],
+                                                       phi_wall=wall_facing_in_base(lidar, ranges, o["p_base"][:2])))
+                        # dock marker preferred; the beacon (directly above it) while the dock marker is unseen
+                        dock_obs = [o for o in camera.last_obs if o["id"] == DOCK_ID]
+                        first_dock_now = bool(dock_obs) and not dock_marker_seen
+                        if first_dock_now and dock.found and not dock.frozen:
+                            dock.sum_w, dock.sum_xy = 0.0, np.zeros(2)       # drop beacon-based target
                         if dock_obs:
-                            seen = "dock" if dock_obs[0]["id"] == DOCK_ID else "beacon"
-                            if seen != last_seen:
-                                print(f"t = {t:5.1f} s  following the {seen} marker")
-                                last_seen = seen
+                            dock_marker_seen = True
+                        elif not dock_marker_seen:
+                            dock_obs = [o for o in camera.last_obs if o["id"] == BEACON_ID]
+                        if dock_obs and dock.found and dock.n_sightings >= 3 and not first_dock_now:
+                            c_, s_ = np.cos(ekf.x[2]), np.sin(ekf.x[2])
+                            pb = dock_obs[0]["p_base"]
+                            seen_xy = ekf.x[:2] + np.array([c_ * pb[0] - s_ * pb[1], s_ * pb[0] + c_ * pb[1]])
+                            if np.hypot(*(seen_xy - dock.marker_xy)) > OUTLIER_DIST:
+                                dock_obs = []
                         if dock_obs and dock.update(dock_obs[0], ekf.x, scan_world):
                             retarget = True
                             if dock.n_sightings == 1:
-                                print(f"t = {t:5.1f} s  dock spotted at ({dock.marker_xy[0]:.2f}, "
+                                print(f"t = {t:5.1f} s  dock seen at ({dock.marker_xy[0]:.2f}, "
                                       f"{dock.marker_xy[1]:.2f}), {dock_obs[0]['range']:.2f} m away")
                         if show:
                             cv2.imshow("robot camera", camera.last_frame)
@@ -225,24 +233,29 @@ def run(host, v_nom, t_max, show):
                     else:
                         if retarget and nav.scans_since_replan >= nav.cooldown_scans:
                             nav.pre, nav.dock, nav.dock_heading = dock.targets()
-                            rr, cc = grid.to_cell(*nav.pre)
-                            if not grid.in_bounds(rr, cc):
-                                raise SystemExit(f"dock target ({nav.pre[0]:.2f}, {nav.pre[1]:.2f}) is outside "
-                                                 "the map - make GRID bigger at the top of run_real.py")
+                            if not grid.in_bounds(*grid.to_cell(*nav.pre)):
+                                raise SystemExit("dock target is outside the map - make GRID bigger")
                             nav.path = None
                             retarget = False
+                        old_path = nav.path
                         new_path, stop = nav.step(ranges, ekf.x, ctrl.i if ctrl else 0)
+                        if new_path is not None and old_path is not None:
+                            direct = float(np.hypot(*(np.asarray(nav.pre) - ekf.x[:2])))
+                            if new_path.length > max(2.0 * direct, direct + 2.0):
+                                detour_wait += 1
+                                if detour_wait < DETOUR_WAIT_SCANS:         # wait in case the way clears
+                                    nav.path, new_path = old_path, None
+                                    nav.scans_since_replan = nav.cooldown_scans
+                            else:
+                                detour_wait = 0
+                        elif new_path is not None:
+                            detour_wait = 0
                         if new_path is not None:
                             ctrl = PathFollower(new_path, rp, cp)
                             log["plans"].append((t, new_path))
-                            print(f"t = {t:5.1f} s  planned ({len(nav.waypoints)} waypoints, "
-                                  f"{new_path.length:.2f} m)" + ("  [dock locked]" if dock.frozen else ""))
-                # ---------------- decide the command ----------------
-                if not dock.found:
-                    v, w = 0.0, 0.0                                     # wait still until the dock marker is seen
-                    if k % 40 == 0:
-                        print(f"t = {t:5.1f} s  waiting for the dock marker - point the camera at it")
-                elif ctrl is None:
+
+                # ---- command ----
+                if not dock.found or ctrl is None or 0 < detour_wait < DETOUR_WAIT_SCANS:
                     v, w = 0.0, 0.0
                 else:
                     v, w, info = ctrl.step(ekf.x, ekf.P)
@@ -255,38 +268,34 @@ def run(host, v_nom, t_max, show):
                 elif stop and dock.found:
                     v, w = 0.0, 0.0
                     stopped_for += 1
-                    if stopped_for >= 40:                               # blocked ~2 s: back off and replan
+                    if stopped_for >= 40:                                   # blocked ~2 s: back off, replan
                         backing_up, stopped_for = 20, 0
                 else:
                     stopped_for = 0
-                if time.time() - last_scan_t > SCAN_STALE_S:            # fail safe: no LiDAR -> no motion
+                if time.time() - last_scan_t > SCAN_STALE_S:                # no LiDAR -> no motion
                     v, w = 0.0, 0.0
                 if info.get("done"):
                     robot.stop()
-                    print(f"t = {t:5.1f} s  DOCKED at estimate ({ekf.x[0]:.2f}, {ekf.x[1]:.2f}, "
+                    print(f"t = {t:5.1f} s  DOCKED at ({ekf.x[0]:.2f}, {ekf.x[1]:.2f}, "
                           f"{np.rad2deg(ekf.x[2]):.0f} deg)")
                     break
-                # ---------------- actuate + odometry ----------------
+
+                # ---- actuate + odometry ----
                 robot.send_command(float(v), float(w))
                 log["t"].append(t)
                 log["est"].append(ekf.x.copy())
-                log["cmd"].append((v, w))
+                log["P"].append(ekf.P.copy())
                 time.sleep(max(0.0, cp.T - (time.time() - t_wall)))
                 ticks = read_ticks(robot)
                 if ticks is not None:
                     ekf.predict(ticks)
-                if time.time() - t_wall > 1.5 * cp.T:
-                    slow_steps += 1
                 k += 1
         except KeyboardInterrupt:
-            print("\nCtrl+C - stopping")
+            pass
         finally:
             robot.stop()
             if show:
                 cv2.destroyAllWindows()
-    if k and slow_steps > 0.2 * k:
-        print(f"warning: {100 * slow_steps / k:.0f}% of steps overran T = {cp.T} s - "
-              "consider a larger T in part_d/tb3_control/params.py")
     return log, grid, dock
 
 
@@ -295,8 +304,7 @@ def plot(log, grid, dock, out):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(6, 6))
-    occ = 1 / (1 + np.exp(-grid.log_odds))
-    ax.imshow(occ, origin="lower", cmap="Greys", vmin=0, vmax=1,
+    ax.imshow(1 / (1 + np.exp(-grid.log_odds)), origin="lower", cmap="Greys", vmin=0, vmax=1,
               extent=[grid.x_min, grid.x_min + grid.nx * grid.res, grid.y_min, grid.y_min + grid.ny * grid.res])
     for _, p in log["plans"]:
         ax.plot(p.x, p.y, "c-", lw=0.8, alpha=0.6)
@@ -311,20 +319,99 @@ def plot(log, grid, dock, out):
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     fig.savefig(out, dpi=120, bbox_inches="tight")
-    print("saved", out)
+
+
+def camera_poses(log, dock):
+    """Robot pose from camera + LiDAR wall fit only (no odometry), anchored to the dock marker pose."""
+    if not dock.found or not log["cam"]:
+        return None
+    M, F = np.asarray(dock.marker_xy, float), float(dock.facing)
+    rows = []
+    for c in log["cam"]:
+        phi = c["phi_wall"] if c["phi_wall"] is not None else c["phi_pnp"]
+        th = float(wrap(F - phi))
+        cs, sn = np.cos(th), np.sin(th)
+        px, py = c["p"][0], c["p"][1]
+        rows.append([c["t"], M[0] - (cs * px - sn * py), M[1] - (sn * px + cs * py), th])
+    return np.array(rows)
+
+
+def plot_estimation(log, dock, out):
+    """EKF estimate +/- 3 sigma vs the camera measurement, and the error with its 3-sigma bound."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    if not log["est"]:
+        return
+    t, est, P = np.array(log["t"]), np.array(log["est"]), np.array(log["P"])
+    sig = np.sqrt(np.stack([P[:, 0, 0], P[:, 1, 1], P[:, 2, 2]], axis=1))
+    meas = camera_poses(log, dock)
+
+    fig = plt.figure(figsize=(12, 13))
+    gs = fig.add_gridspec(4, 2, height_ratios=[1.6, 1, 1, 1])
+    ax = fig.add_subplot(gs[0, :])
+    ax.plot(est[:, 0], est[:, 1], "b-", lw=1.8, label="EKF estimate")
+    for i in np.linspace(0, len(est) - 1, 12).astype(int):
+        w, V = np.linalg.eigh(P[i, :2, :2])
+        ang = np.linspace(0, 2 * np.pi, 60)
+        e = (V @ (3 * np.sqrt(np.maximum(w, 0))[:, None] * np.vstack([np.cos(ang), np.sin(ang)]))).T
+        ax.plot(est[i, 0] + e[:, 0], est[i, 1] + e[:, 1], "b-", lw=0.6, alpha=0.5)
+    if meas is not None:
+        ax.plot(meas[:, 1], meas[:, 2], "r.", ms=4, label="camera + LiDAR measurement")
+    if dock.found:
+        ax.plot(*dock.marker_xy, "ks", ms=8, label="dock marker")
+    ax.plot(0, 0, "go", label="start")
+    ax.set_aspect("equal")
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_title("Path: EKF estimate with 3-sigma ellipses vs camera measurement")
+    ax.legend(loc="best", fontsize=8)
+
+    names, units, scale = ["x", "y", "heading"], ["m", "m", "deg"], [1, 1, 180 / np.pi]
+    for k in range(3):
+        a = fig.add_subplot(gs[k + 1, 0])
+        a.fill_between(t, (est[:, k] - 3 * sig[:, k]) * scale[k], (est[:, k] + 3 * sig[:, k]) * scale[k],
+                       color="b", alpha=0.15, label="EKF +/- 3 sigma")
+        a.plot(t, est[:, k] * scale[k], "b-", lw=1.2, label="EKF estimate")
+        if meas is not None:
+            a.plot(meas[:, 0], meas[:, k + 1] * scale[k], "r.", ms=3, label="measurement")
+        a.set_ylabel(f"{names[k]} [{units[k]}]")
+        b = fig.add_subplot(gs[k + 1, 1])
+        b.fill_between(t, -3 * sig[:, k] * scale[k], 3 * sig[:, k] * scale[k], color="b", alpha=0.15,
+                       label="+/- 3 sigma")
+        if meas is not None:
+            idx = np.clip(np.searchsorted(t, meas[:, 0]), 0, len(t) - 1)
+            err = est[idx, k] - meas[:, k + 1]
+            if k == 2:
+                err = wrap(err)
+            b.plot(meas[:, 0], err * scale[k], "r.", ms=3, label="estimate - measurement")
+        b.axhline(0, color="k", lw=0.6)
+        b.set_ylabel(f"error {names[k]} [{units[k]}]")
+        if k == 0:
+            a.set_title("State vs time")
+            a.legend(loc="best", fontsize=7)
+            b.set_title("Error vs time")
+            b.legend(loc="best", fontsize=7)
+        if k == 2:
+            a.set_xlabel("time [s]")
+            b.set_xlabel("time [s]")
+    fig.tight_layout()
+    fig.savefig(out, dpi=120)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("host", help="robot IP, e.g. 192.168.1.213")
-    ap.add_argument("--v-nom", type=float, default=0.10, help="cruise speed [m/s] (sim used 0.20)")
+    ap.add_argument("--v-nom", type=float, default=0.10, help="cruise speed [m/s]")
     ap.add_argument("--t-max", type=float, default=120.0)
     ap.add_argument("--show", action="store_true", help="show the camera with detections")
     args = ap.parse_args()
     log, grid, dock = run(args.host, args.v_nom, args.t_max, args.show)
     out_dir = ROOT / "results"
     out_dir.mkdir(exist_ok=True)
-    plot(log, grid, dock, out_dir / f"real_run_{time.strftime('%Y%m%d_%H%M%S')}.png")
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    plot(log, grid, dock, out_dir / f"real_run_{stamp}.png")
+    plot_estimation(log, dock, out_dir / f"estimate_{stamp}.png")
 
 
 if __name__ == "__main__":
